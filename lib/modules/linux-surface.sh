@@ -2,7 +2,7 @@
 
 __pacman_install_retry() {
     for i in {1..5}; do
-        if pacman --noconfirm -S "${@}"; then
+        if pacman --noconfirm --disable-sandbox -S "${@}"; then
             break
         fi
 
@@ -30,7 +30,7 @@ Server = https://pkg.surfacelinux.com/arch-aarch64/
 EOF
 
     # update
-    pacman --noconfirm -Syu
+    pacman --noconfirm --disable-sandbox -Syu
 
     # WORKAROUND: This is a workaround for an issue with GitHub CI. Normally,
     # we would install these packages together with the other packages via the

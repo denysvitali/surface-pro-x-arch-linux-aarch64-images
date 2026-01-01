@@ -13,8 +13,12 @@ env:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+
     name: Build default Image
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       packages: write
@@ -24,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up QEMU
+        if: ${{ !endsWith(matrix.os, '-arm') }}
         uses: docker/setup-qemu-action@v3
 
       - name: Setup Docker buildx

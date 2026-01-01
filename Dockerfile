@@ -1,4 +1,4 @@
-FROM archlinux/archlinux
+FROM pkgforge/archlinux
 
 RUN pacman --noconfirm -Syu \
     && pacman --noconfirm -S wget libarchive arch-install-scripts \
