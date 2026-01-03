@@ -58,22 +58,21 @@ _img_build() {
     _msg2 "Laying out partitions..."
 
     # compute EFS partition size in MiB
-    efs_size=$(du -bc "${_DIR_DISK_EFI}" | grep total | cut -f1)
-    efs_part_size=$(( (efs_size*105)/100/(1024*1024) + 1))
+    efs_part_size=$(du -s --block-size=1M "${_DIR_DISK_EFI}" | cut -f1)
 
     if [[ $efs_part_size -lt 48 ]]; then
         efs_part_size=48
     fi
 
     # compute root partition size in MiB
-    root_size=$(du -bc "${_DIR_DISK_ROOT}" | grep total | cut -f1)
-    root_part_size=$(( (root_size*110)/100/(1024*1024) + 1))
+    root_size=$(du -s --block-size=1M "${_DIR_DISK_ROOT}" | cut -f1)
+    root_part_size=$(( root_size + 128 ))
 
     # compute disk size and create base image
     _msg2 "Allocating disk image..."
     _IMG_DISK="${_DIR_BUILD}/disk.img"
 
-    disk_size=$(( efs_part_size + root_part_size + 5 ))
+    disk_size=$(( efs_part_size + root_part_size + 8 ))
     dd if=/dev/zero of="${_IMG_DISK}" bs="${disk_size}" count=1048576 status=none
     sync
 

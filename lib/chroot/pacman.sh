@@ -8,7 +8,7 @@ _pacman_setup() {
 
 _pacman_update() {
     _msg1 "Updating the system..."
-    pacman --noconfirm -Syu
+    pacman --noconfirm --disable-sandbox -Syu
 }
 
 _pacman_install() {
@@ -18,7 +18,7 @@ _pacman_install() {
         mapfile -t pkglist < "${_CHROOT_PACKAGES}/install"
 
         if [[ ${#pkglist[@]} -gt 0 ]]; then
-            pacman --noconfirm -S "${pkglist[@]}"
+            pacman --noconfirm --disable-sandbox -S "${pkglist[@]}"
         fi
     fi
 
@@ -29,7 +29,7 @@ _pacman_install() {
         shopt -u nullglob
 
         if [[ ${#pkglist[@]} -gt 0 ]]; then
-            pacman --noconfirm -U "${pkglist[@]}"
+            pacman --noconfirm --disable-sandbox -U "${pkglist[@]}"
         fi
     fi
 }
@@ -41,11 +41,11 @@ _pacman_uninstall() {
         mapfile -t pkglist < "${_CHROOT_PACKAGES}/uninstall"
 
         if [[ ${#pkglist[@]} -gt 0 ]]; then
-            pacman --noconfirm -Rns "${pkglist[@]}"
+            pacman --noconfirm --disable-sandbox -Rns "${pkglist[@]}"
         fi
     fi
 }
 
 _pacman_install_local() {
-    pacman --noconfirm -U "${@}"
+    pacman --noconfirm --disable-sandbox -U "${@}"
 }
