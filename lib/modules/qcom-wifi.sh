@@ -19,7 +19,6 @@ _qcom_wifi_makepkg() {
 _qcom_wifi_services() {
     _msg2 "Enabling Qualcomm WiFi services..."
 
-    systemctl enable qrtr-ns.service
     systemctl enable pd-mapper.service
     systemctl enable tqftpserv.service
     systemctl enable rmtfs.service
