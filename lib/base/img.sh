@@ -64,16 +64,24 @@ _img_build() {
         efs_part_size=48
     fi
 
-    # compute root partition size in MiB
+    # compute root partition size in MiB. du reports space used on the build
+    # filesystem, but the target ext4 also needs room for its journal, inode
+    # tables and other metadata, all of which scale with the image. A flat
+    # +128 MiB only suffices for small profiles; a multi-GB desktop rootfs
+    # overflows it ("No space left on device" while copying). Add a proportional
+    # margin (25%) plus a fixed floor instead.
     root_size=$(du -s --block-size=1M "${_DIR_DISK_ROOT}" | cut -f1)
-    root_part_size=$(( root_size + 128 ))
+    root_part_size=$(( root_size + root_size / 4 + 256 ))
 
     # compute disk size and create base image
     _msg2 "Allocating disk image..."
     _IMG_DISK="${_DIR_BUILD}/disk.img"
 
     disk_size=$(( efs_part_size + root_part_size + 8 ))
-    dd if=/dev/zero of="${_IMG_DISK}" bs="${disk_size}" count=1048576 status=none
+    # Allocate sparsely: only written blocks consume host disk, which keeps the
+    # build within the runner's disk budget for large images (dd reads the holes
+    # back as zeros when flashing). Equivalent layout to a zero-filled file.
+    truncate -s "${disk_size}M" "${_IMG_DISK}"
     sync
 
     # partition base image
@@ -87,7 +95,10 @@ _img_build() {
     loopdev=$(losetup --show -f -P "${_IMG_DISK}") || return 1
 
     mkfs.fat -F 32 "${loopdev}p1" > /dev/null
-    mkfs.ext4 "${loopdev}p2" > /dev/null 2>&1
+    # -m 0: this is a removable system image, so do not reserve the default 5%
+    # of the root filesystem for root-only use; give that space back to the user
+    # (and to fitting the rootfs).
+    mkfs.ext4 -m 0 "${loopdev}p2" > /dev/null 2>&1
     sync
 
     # copy files
