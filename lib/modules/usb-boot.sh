@@ -50,6 +50,17 @@ install() {
         _msg2 "Added initramfs modules: ${mods}"
     fi
 
+    # Drop the 'autodetect' hook. autodetect trims the initramfs to the modules
+    # for hardware present on the *build* machine, but this image is built in a
+    # container on a generic CI runner and booted on a Surface Pro X. With
+    # autodetect the resulting initramfs is missing the Surface's USB host
+    # controller / PHY / hub drivers, so the USB root device never enumerates
+    # and the boot drops to the emergency shell ("Timed out waiting for device
+    # /dev/disk/by-uuid/..."). Without autodetect every module is included, so
+    # the image is self-contained and host-independent.
+    _msg2 "Removing 'autodetect' hook for a host-independent initramfs..."
+    sed -i -E '/^HOOKS=/ { s/(^|[ (])autodetect([ )])/\1\2/; s/  +/ /g; s/\( /(/; s/ \)/)/ }' "${conf}"
+
     _msg2 "Regenerating all initramfs images..."
     # Rebuild every preset (initramfs-linux-surface.img is the one the
     # persistent grub.cfg loads).
