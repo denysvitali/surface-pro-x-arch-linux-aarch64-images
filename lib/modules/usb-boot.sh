@@ -3,10 +3,11 @@
 install() {
     _msg2 "Configuring mkinitcpio for USB boot..."
 
-    # The persistent profile boots a real ext4 root off the USB stick. The
-    # initramfs therefore needs the Qualcomm USB PHY + DWC3 host-controller
-    # drivers and the USB mass-storage drivers, otherwise the root device never
-    # appears and the boot stalls in the early-userspace shell.
+    # For booting a real root off a USB stick (persistent profile) the initramfs
+    # needs the Qualcomm USB PHY + dwc3 host-controller drivers and the USB
+    # mass-storage drivers, otherwise the root device never appears and the boot
+    # stalls in the early-userspace shell. The 'block' hook is already part of
+    # the default mkinitcpio.conf, so we only need MODULES=().
     #
     #   phy-qcom-qmp            QMP PHY (SuperSpeed USB)
     #   phy-qcom-snps-femto-v2  Synopsys Femto high-speed USB PHY
@@ -14,35 +15,40 @@ install() {
     #   uas                     USB Attached SCSI (fast USB3 storage)
     #   usb_storage             USB mass-storage class driver
     #
-    # The 'block' hook is already part of the default mkinitcpio.conf, so we
-    # only need to force-load these modules early via MODULES=().
-    #
-    # Each module is added with mkinitcpio's '?' optional prefix: on the
-    # sc8180x linux-surface kernel several of these PHY/controller drivers are
-    # built into the kernel (=y) rather than loadable modules, so a plain
-    # MODULES entry makes mkinitcpio abort with "module not found". The '?'
-    # prefix tells mkinitcpio to skip any module it cannot find.
+    # On the sc8180x linux-surface kernel several of these are built into the
+    # kernel (=y) rather than loadable modules. Listing a built-in/absent module
+    # in MODULES makes mkinitcpio abort with "module not found" (and this
+    # mkinitcpio does not understand the '?' optional prefix). So only add the
+    # candidates that actually exist as loadable modules for the target kernel.
     local conf=/etc/mkinitcpio.conf
-    local mods="phy-qcom-qmp phy-qcom-snps-femto-v2 dwc3-qcom uas usb_storage"
+    local candidates="phy-qcom-qmp phy-qcom-snps-femto-v2 dwc3-qcom uas usb_storage"
+
+    # Resolve the target kernel version. The chroot only carries the
+    # linux-surface kernel's modules under /usr/lib/modules; modinfo otherwise
+    # defaults to the build host's running kernel, which is the wrong tree.
+    local kver
+    kver="$(ls -1 /usr/lib/modules 2>/dev/null | head -n1)"
 
     local m
-    for m in $mods; do
-        # Idempotent: only insert a module that is not already listed inside
-        # MODULES=(...). Match it as a whole word so e.g. 'uas' does not match
-        # a hypothetical 'uas_foo'.
-        if grep -Eq "^MODULES=\(.*\b${m}\b.*\)" "$conf"; then
-            continue
+    local add=()
+    for m in ${candidates}; do
+        if [[ -n "${kver}" ]] && modinfo -k "${kver}" "${m}" >/dev/null 2>&1; then
+            add+=("${m}")
+        else
+            _msg2 "  skip ${m}: not a loadable module for ${kver:-unknown} (built-in or absent)"
         fi
-
-        # Insert the module (optional '?' prefix) just before the closing paren
-        # of MODULES=(...), preserving any modules that are already present. The
-        # leading space is harmless when the list is empty (MODULES=( foo)).
-        sed -i -E "s/^(MODULES=\()(.*)(\))/\1\2 ?${m}\3/" "$conf"
     done
 
-    # Tidy up the common 'MODULES=( foo ...' double/leading space cases so the
-    # file stays readable; purely cosmetic, never fails.
-    sed -i -E 's/^(MODULES=\() +/\1/' "$conf"
+    if [[ ${#add[@]} -gt 0 ]]; then
+        local mods="${add[*]}"
+
+        # Insert the resolved modules before the closing paren of MODULES=(...),
+        # preserving anything already present, then squash a leading space.
+        sed -i -E "s/^(MODULES=\()(.*)(\))/\1\2 ${mods}\3/" "${conf}"
+        sed -i -E 's/^(MODULES=\() +/\1/' "${conf}"
+
+        _msg2 "Added initramfs modules: ${mods}"
+    fi
 
     _msg2 "Regenerating all initramfs images..."
     # Rebuild every preset (initramfs-linux-surface.img is the one the
