@@ -58,6 +58,11 @@ jobs:
   release:
     name: Publish release
     needs: [build]
+    # Only publish a release for tag pushes; on branch pushes github.ref is a
+    # branch (e.g. refs/heads/main) for which no release exists, so the upload
+    # would fail with "Not Found". The built images are still available as
+    # workflow artifacts on every run.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts
