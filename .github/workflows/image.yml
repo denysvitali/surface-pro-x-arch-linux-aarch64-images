@@ -95,12 +95,26 @@ jobs:
           echo "prerelease=true" >> "${GITHUB_OUTPUT}"
         fi
 
+    - name: Compress images
+      if: ${{ steps.rel.outputs.publish == 'true' }}
+      # GitHub rejects release assets >= 2 GiB. Raw disk images exceed that
+      # (the desktop image is ~2.3 GiB), but they compress heavily because most
+      # of the partition is empty. zstd keeps the result well under the limit
+      # and is the native Arch compression format.
+      run: |
+        cd artifacts
+        for img in *.img; do
+          echo "Compressing ${img}..."
+          zstd -T0 -12 --rm "${img}"
+        done
+        ls -la
+
     - name: Publish release
       if: ${{ steps.rel.outputs.publish == 'true' }}
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: artifacts/*.img
+        file: artifacts/*.img.zst
         file_glob: true
         tag: ${{ steps.rel.outputs.tag }}
         release_name: Build ${{ steps.rel.outputs.tag }}
@@ -109,3 +123,6 @@ jobs:
         overwrite: true
         body: |
           Automated image build for commit ${{ github.sha }}.
+
+          Images are zstd-compressed. Flash with, e.g.:
+          `zstd -d aarch64-arch-spx-default.img.zst -c | sudo dd of=/dev/sdX bs=4M status=progress && sync`
