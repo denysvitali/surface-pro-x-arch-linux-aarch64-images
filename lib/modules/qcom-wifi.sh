@@ -11,6 +11,17 @@ _qcom_wifi_makepkg() {
     _makepkg_build_install "${_BUILDDIR}/ls/qrtr"
     _makepkg_build_install "${_BUILDDIR}/ls/tqftpserv"
     _makepkg_build_install "${_BUILDDIR}/ls/pd-mapper"
+
+    # Pin rmtfs to the commit before linux-msm/rmtfs upstreamed the "-o optarg"
+    # getopt fix (14cb1ee, 2026-01-03). rmtfs-dummy still carries that fix as a
+    # bundled patch, which no longer applies against the unpinned HEAD
+    # ("patch failed: rmtfs.c:505 ... patch does not apply"). Pinning the parent
+    # commit lets both bundled patches apply cleanly again.
+    local rmtfs_commit="f9847a777c4b1bd4c9dfdef457e46e8c5dc8e753"
+    sed -i \
+        "s|github.com/linux-msm/rmtfs.git|github.com/linux-msm/rmtfs.git#commit=${rmtfs_commit}|" \
+        "${_BUILDDIR}/ls/rmtfs-dummy/PKGBUILD"
+
     _makepkg_build_install "${_BUILDDIR}/ls/rmtfs-dummy"
 
     cd /
