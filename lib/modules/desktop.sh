@@ -30,7 +30,12 @@ _desktop_sudo() {
     # Members of wheel may run sudo (prompting for their password). This matches
     # the Arch default sudoers comment but enables it via a drop-in so we never
     # edit the shipped sudoers file.
-    install -d -m 0750 /etc/sudoers.d
+    #
+    # NB: this module defines an install() hook, so the coreutils `install`
+    # command would resolve to that function (shell functions shadow externals)
+    # and recurse infinitely -- use mkdir/chmod instead.
+    mkdir -p /etc/sudoers.d
+    chmod 0750 /etc/sudoers.d
     echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
     chmod 0440 /etc/sudoers.d/10-wheel
 }
