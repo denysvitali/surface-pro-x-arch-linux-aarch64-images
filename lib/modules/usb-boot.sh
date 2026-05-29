@@ -16,6 +16,12 @@ install() {
     #
     # The 'block' hook is already part of the default mkinitcpio.conf, so we
     # only need to force-load these modules early via MODULES=().
+    #
+    # Each module is added with mkinitcpio's '?' optional prefix: on the
+    # sc8180x linux-surface kernel several of these PHY/controller drivers are
+    # built into the kernel (=y) rather than loadable modules, so a plain
+    # MODULES entry makes mkinitcpio abort with "module not found". The '?'
+    # prefix tells mkinitcpio to skip any module it cannot find.
     local conf=/etc/mkinitcpio.conf
     local mods="phy-qcom-qmp phy-qcom-snps-femto-v2 dwc3-qcom uas usb_storage"
 
@@ -28,10 +34,10 @@ install() {
             continue
         fi
 
-        # Insert the module just before the closing paren of MODULES=(...),
-        # preserving any modules that are already present. The leading space is
-        # harmless when the list is empty (MODULES=( foo)).
-        sed -i -E "s/^(MODULES=\()(.*)(\))/\1\2 ${m}\3/" "$conf"
+        # Insert the module (optional '?' prefix) just before the closing paren
+        # of MODULES=(...), preserving any modules that are already present. The
+        # leading space is harmless when the list is empty (MODULES=( foo)).
+        sed -i -E "s/^(MODULES=\()(.*)(\))/\1\2 ?${m}\3/" "$conf"
     done
 
     # Tidy up the common 'MODULES=( foo ...' double/leading space cases so the
