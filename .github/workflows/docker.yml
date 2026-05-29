@@ -2,6 +2,8 @@ name: Build and publish Container
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
       - 'test-container-*'
