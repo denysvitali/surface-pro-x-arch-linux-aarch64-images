@@ -34,8 +34,16 @@ docker run --rm --privileged                  \
 
 Default login credentials are the ones provided by the Arch Linux ARM root file system, i.e. user/password `alarm`/`alarm` and `root`/`root`.
 Networking is handled by `NetworkManager` (using `iwd` as the WiFi backend) and time synchronization by `chrony` (`chronyd`).
-Note that, by default, an OpenSSH server is running.
+Note that, by default, an OpenSSH server is running (`sshd` is enabled for headless access).
 Therefore, please do not connect this machine directly to the internet (without firewall) before changing those.
+
+The images come preconfigured for the Surface Pro X (`sc8180x`):
+
+- WiFi via the Qualcomm `ath10k`/`qrtr` user-space stack (`pd-mapper`, `tqftpserv`, `rmtfs`).
+- Bluetooth via `bluez`, with the QCA `crnv01`→`crnv21` firmware aliasing the controller needs.
+- GPU acceleration via Mesa `freedreno`/Turnip for the Adreno 680 (`mesa`, `vulkan-freedreno`).
+- Touch and pen via `iptsd` (built from source), including a fix for spurious pen-button presses (`/etc/iptsd.d/10-button-fix.conf`).
+- USB-boot initramfs (Qualcomm USB PHY/DWC3 + `usb_storage`/`uas`) so the `persistent` profile can mount its real `ext4` root straight off the USB stick.
 
 
 ### Running on an x86 Host
