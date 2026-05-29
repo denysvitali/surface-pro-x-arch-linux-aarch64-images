@@ -4,6 +4,8 @@ git
 wget
 meson
 iwd
+networkmanager
+chrony
 crda
 usbutils
 htop

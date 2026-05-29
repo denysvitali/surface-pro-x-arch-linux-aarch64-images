@@ -33,6 +33,7 @@ docker run --rm --privileged                  \
 ```
 
 Default login credentials are the ones provided by the Arch Linux ARM root file system, i.e. user/password `alarm`/`alarm` and `root`/`root`.
+Networking is handled by `NetworkManager` (using `iwd` as the WiFi backend) and time synchronization by `chrony` (`chronyd`).
 Note that, by default, an OpenSSH server is running.
 Therefore, please do not connect this machine directly to the internet (without firewall) before changing those.
 
@@ -71,11 +72,17 @@ The `aarch64-arch-mkimage` utility works in three major steps:
   dd if=build/disk.img of=/dev/sdX bs=1m && sync
   ```
 
-- `persistent`: This profile generates EFI and root partition file systems intended for use in a persistent scenario.
-  Unfortunately, this means that a full disk image cannot be created automatically (the file system sizes are unknown).
-  Therefore, this profile outputs only file system trees at `build/disk/efi` and `build/disk/root`.
+- `persistent`: This profile installs a full, persistent Arch Linux system intended to run directly off a USB stick.
+  Unlike `default`, the root file system lives on a real `ext4` partition (`root=UUID=… rw`), so any changes you make persist across reboots.
+  It builds a ready-to-flash disk image at `build/disk.img` and also leaves the EFI and root file system trees at `build/disk/efi` and `build/disk/root`.
 
-  To use this profile, format the USB stick, e.g. via `gdisk` and create an EFI (`gdisk` type `ef00`) partition with 128Mib and a root partition (`gdisk` type `8300` or `8304`).
+  To use this profile, simply flash the created `build/disk.img` to a USB stick, e.g. via
+  ```
+  dd if=build/disk.img of=/dev/sdX bs=1m && sync
+  ```
+
+  Alternatively, if you want to control the partition sizes yourself, copy the file system trees onto a manually partitioned USB stick.
+  Format the USB stick, e.g. via `gdisk` and create an EFI (`gdisk` type `ef00`) partition with 128Mib and a root partition (`gdisk` type `8300` or `8304`).
   You can adapt the partition sizes as needed.
   Assuming the USB stick is present as `/dev/sdX`, this translates to the following `sgdisk` commands:
   ```
