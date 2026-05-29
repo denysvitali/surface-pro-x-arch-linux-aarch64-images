@@ -124,21 +124,46 @@ The `aarch64-arch-mkimage` utility works in three major steps:
   ```
 
 - `desktop`: A persistent system (same disk layout as `persistent`) that boots into a
-  [Hyprland](https://hyprland.org/) Wayland desktop, loosely modelled on
+  [Hyprland](https://hyprland.org/) Wayland desktop, modelled on
   [Omarchy](https://github.com/basecamp/omarchy).
   Omarchy itself is x86-centric and pulls many AUR packages, so instead of running its
-  installer this profile assembles an equivalent stack from native ALARM/aarch64 packages:
-  Hyprland with `waybar`, `mako`, `wofi`, `hyprlock`/`hypridle`, PipeWire audio, the
-  Alacritty terminal and Chromium, plus a small set of Omarchy-flavoured (Catppuccin Mocha)
-  configs shipped via `/etc/skel`.
+  installer this profile assembles an equivalent stack from native ALARM/aarch64 packages
+  and ships Omarchy-styled configs (the **Tokyo Night** theme, Omarchy's Hyprland
+  look-and-feel and keybindings) via `/etc/skel`:
+  - Hyprland with `waybar`, `mako` (notifications), `hyprlock`/`hypridle`, `swayosd`
+    (on-screen volume/brightness), `hyprpicker`, and `swaybg`.
+  - The **Alacritty** terminal (Omarchy's default), **Chromium**, **Nautilus**, `mpv`/`imv`,
+    and screenshots via `grim` + `slurp` + `satty`.
+  - PipeWire audio, and a CLI set close to Omarchy's: `btop`, `fastfetch`, `bat`, `eza`,
+    `fd`, `fzf`, `ripgrep`, `zoxide`, `starship`, `tmux`, `lazygit`, `neovim`.
+  - Fonts: `ttf-jetbrains-mono-nerd` (Omarchy's default), plus Noto.
+
   Login is handled by `greetd` + `tuigreet`, which launches Hyprland for the default
   `alarm` user (added to the `wheel`/`video`/`input`/`audio` groups).
+  The one notable divergence from upstream is the launcher: Omarchy uses `walker` (which
+  needs the AUR `elephant` backend and is unproven on aarch64), so this profile ships
+  `wofi`, themed to match.
 
   Flash and use it exactly like the `persistent` profile (`dd` or manual partitioning).
   Note this is a much larger image and a correspondingly longer build; the panel is scaled
-  1.5x and 3-finger swipes switch workspaces for touch use.
-  Super (`SUPER`) is the modifier: `SUPER+RETURN` opens a terminal, `SUPER+R` the launcher,
-  `SUPER+B` the browser, `SUPER+L` locks.
+  1.6x and 3-finger swipes switch workspaces for touch use.
+  Super (`SUPER`) is the modifier (Omarchy layout): `SUPER+RETURN` terminal, `SUPER+SPACE`
+  launcher, `SUPER+B` browser, `SUPER+E` files, `SUPER+W` close window, `SUPER+F` fullscreen,
+  `SUPER+CTRL+L` lock, `Print` region screenshot.
+
+### Installing onto the internal disk (NVMe)
+
+  The `desktop` image includes `aarch64-arch-install`, which clones the running live system
+  onto an internal disk and makes it bootable. Boot the USB image, log in, open a terminal
+  and run (as root):
+  ```
+  sudo aarch64-arch-install            # installs onto /dev/nvme0n1 by default
+  sudo aarch64-arch-install -d /dev/sdX # or pick another target disk
+  ```
+  It partitions the target (512 MiB FAT32 ESP + ext4 root), copies the system with `rsync`,
+  installs the bootloader to the ESP, writes `/etc/fstab` by UUID, and adds a UEFI boot
+  entry. **This erases the target disk** and asks for confirmation first (`-y` skips it).
+  Afterwards, remove the USB stick and reboot.
 
 
 ## Customization

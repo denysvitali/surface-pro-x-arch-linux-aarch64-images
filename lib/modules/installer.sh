@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+
+# installer: make the live image self-installing onto an internal disk (the
+# Surface Pro X NVMe). It does two things in the chroot:
+#   1. Stashes the assembled ESP tree (grub bootaa64.efi + grub.cfg + the EFI
+#      shell) into the root filesystem, where it survives image packing (img.sh
+#      strips the top-level /efi but leaves /usr alone). The on-device installer
+#      copies this onto the target's EFI partition.
+#   2. Installs /usr/local/bin/aarch64-arch-install, which clones the running
+#      system onto a target disk and makes it bootable.
+#
+# Must run after the grub (01) and efi-shell (02) modules so /efi is complete.
+
+_INSTALLER_EFI_STASH="/usr/local/share/aarch64-arch-mkimg/efi"
+
+_installer_stash_efi() {
+    _msg2 "Stashing ESP tree for the on-device installer..."
+
+    mkdir -p "${_INSTALLER_EFI_STASH}"
+    if [[ -d /efi ]]; then
+        cp -a /efi/. "${_INSTALLER_EFI_STASH}/"
+    else
+        _msg2 "  warning: /efi not found; the on-device installer will have no bootloader to copy"
+    fi
+}
+
+_installer_write_script() {
+    _msg2 "Installing aarch64-arch-install..."
+
+    mkdir -p /usr/local/bin
+    cat > /usr/local/bin/aarch64-arch-install <<'INSTALLER_EOF'
+#!/usr/bin/env bash
+#
+# aarch64-arch-install — clone this running system onto an internal disk and
+# make it bootable. Intended to be run from the live USB image to install onto
+# the Surface Pro X internal NVMe.
+#
+set -euo pipefail
+
+EFI_SRC="/usr/local/share/aarch64-arch-mkimg/efi"
+TARGET="/dev/nvme0n1"
+ASSUME_YES=0
+
+die()  { echo "error: $*" >&2; exit 1; }
+note() { echo ">> $*"; }
+
+usage() {
+    cat <<USAGE
+Usage: aarch64-arch-install [-d DEVICE] [-y]
+
+Clone the running system onto DEVICE (default: ${TARGET}) and make it bootable.
+THIS ERASES THE TARGET DEVICE.
+
+  -d DEVICE   target whole disk (e.g. /dev/nvme0n1, /dev/sda)
+  -y          do not ask for confirmation
+  -h          show this help
+USAGE
+}
+
+while getopts "d:yh" opt; do
+    case "${opt}" in
+        d) TARGET="${OPTARG}" ;;
+        y) ASSUME_YES=1 ;;
+        h) usage; exit 0 ;;
+        *) usage; exit 1 ;;
+    esac
+done
+
+[[ ${EUID} -eq 0 ]]   || die "must run as root"
+[[ -b ${TARGET} ]]    || die "target ${TARGET} is not a block device"
+[[ -d ${EFI_SRC} ]]   || die "EFI source ${EFI_SRC} is missing (is this the live image?)"
+
+# Refuse to install onto the disk we are currently running from.
+cur_src="$(findmnt -no SOURCE / || true)"
+cur_disk="$(lsblk -no PKNAME "${cur_src}" 2>/dev/null | head -n1 || true)"
+if [[ -n ${cur_disk} && /dev/${cur_disk} == "${TARGET}" ]]; then
+    die "${TARGET} is the disk the live system is running from; pick the internal disk"
+fi
+
+# Partition node naming (nvme0n1p1 vs sda1).
+case "${TARGET}" in
+    *nvme*|*mmcblk*|*loop*) P="p" ;;
+    *)                      P=""  ;;
+esac
+EFI_PART="${TARGET}${P}1"
+ROOT_PART="${TARGET}${P}2"
+
+note "Target disk : ${TARGET}"
+note "  EFI part  : ${EFI_PART} (512 MiB, FAT32)"
+note "  root part : ${ROOT_PART} (rest, ext4)"
+
+if [[ ${ASSUME_YES} -ne 1 ]]; then
+    echo
+    read -r -p "This will ERASE ALL DATA on ${TARGET}. Type YES to continue: " ans
+    [[ ${ans} == "YES" ]] || die "aborted"
+fi
+
+note "Partitioning ${TARGET}..."
+wipefs -a "${TARGET}" >/dev/null 2>&1 || true
+sgdisk -Z "${TARGET}" >/dev/null
+sgdisk "${TARGET}" -n 1:0:+512MiB -t 1:ef00 -c 1:efi  >/dev/null
+sgdisk "${TARGET}" -n 2:0:0       -t 2:8304 -c 2:root >/dev/null
+
+udevadm settle 2>/dev/null || true
+blockdev --rereadpt "${TARGET}" 2>/dev/null || true
+for _ in $(seq 1 10); do
+    [[ -b ${EFI_PART} && -b ${ROOT_PART} ]] && break
+    sleep 1
+done
+[[ -b ${EFI_PART} && -b ${ROOT_PART} ]] || die "partitions did not appear"
+
+note "Formatting..."
+mkfs.fat -F 32 -n EFI "${EFI_PART}" >/dev/null
+mkfs.ext4 -F -m 0 -L root "${ROOT_PART}" >/dev/null 2>&1
+
+MNT="$(mktemp -d)"
+cleanup() {
+    umount "${MNT}/efi" 2>/dev/null || true
+    umount "${MNT}"     2>/dev/null || true
+    rmdir  "${MNT}"     2>/dev/null || true
+}
+trap cleanup EXIT
+
+note "Mounting target..."
+mount "${ROOT_PART}" "${MNT}"
+mkdir -p "${MNT}/efi"
+mount "${EFI_PART}" "${MNT}/efi"
+
+note "Copying system (this can take several minutes)..."
+rsync -aHAXS --info=progress2 \
+    --exclude="/dev/*"  --exclude="/proc/*" --exclude="/sys/*" \
+    --exclude="/run/*"  --exclude="/tmp/*"  --exclude="/mnt/*" \
+    --exclude="/media/*" --exclude="/lost+found" --exclude="${MNT}" \
+    / "${MNT}/"
+
+# Recreate the virtual-filesystem mountpoints rsync skipped.
+mkdir -p "${MNT}"/{dev,proc,sys,run,tmp,mnt,media}
+chmod 1777 "${MNT}/tmp"
+
+note "Installing bootloader (ESP)..."
+cp -a "${EFI_SRC}/." "${MNT}/efi/"
+
+# The grub.cfg locates the root partition by this marker, then derives its UUID.
+touch "${MNT}/boot/.aarch64-arch-boot"
+
+note "Writing /etc/fstab..."
+root_uuid="$(blkid -s UUID -o value "${ROOT_PART}")"
+efi_uuid="$(blkid -s UUID -o value "${EFI_PART}")"
+cat > "${MNT}/etc/fstab" <<FSTAB
+# Generated by aarch64-arch-install
+UUID=${root_uuid}  /      ext4  rw,relatime                        0 1
+UUID=${efi_uuid}   /efi   vfat  rw,relatime,fmask=0137,dmask=0027  0 2
+FSTAB
+
+# Best-effort firmware boot entry; the firmware also auto-boots the removable
+# fallback path \EFI\Boot\bootaa64.efi that we just installed.
+if [[ -d /sys/firmware/efi/efivars ]]; then
+    note "Adding UEFI boot entry..."
+    efibootmgr -c -d "${TARGET}" -p 1 -L "Arch Linux (Surface)" \
+        -l '\EFI\Boot\bootaa64.efi' >/dev/null 2>&1 || \
+        note "could not add UEFI boot entry; relying on the removable fallback path"
+fi
+
+sync
+note "Done. Remove the USB stick and reboot to start from ${TARGET}."
+INSTALLER_EOF
+
+    chmod +x /usr/local/bin/aarch64-arch-install
+}
+
+install() {
+    _installer_stash_efi
+    _installer_write_script
+}

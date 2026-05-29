@@ -1,46 +1,58 @@
 {
     "layer": "top",
     "position": "top",
-    "height": 34,
-    "spacing": 6,
+    "height": 26,
+    "spacing": 0,
     "modules-left": ["hyprland/workspaces", "hyprland/window"],
     "modules-center": ["clock"],
-    "modules-right": ["pulseaudio", "network", "bluetooth", "battery", "tray"],
+    "modules-right": ["tray", "bluetooth", "network", "pulseaudio", "cpu", "battery"],
 
     "hyprland/workspaces": {
-        "format": "{id}",
-        "on-click": "activate"
+        "format": "{icon}",
+        "on-click": "activate",
+        "format-icons": { "active": "󱓻", "default": "" },
+        "persistent-workspaces": { "*": 5 }
     },
     "hyprland/window": {
-        "max-length": 60
+        "max-length": 60,
+        "separate-outputs": true
     },
     "clock": {
-        "format": "{:%a %d %b  %H:%M}",
+        "format": "{:L%A %H:%M}",
+        "format-alt": "{:L%d %B W%V %Y}",
         "tooltip-format": "<tt>{calendar}</tt>"
+    },
+    "cpu": {
+        "interval": 5,
+        "format": "  {usage}%",
+        "on-click": "alacritty -e btop"
     },
     "battery": {
         "format": "{capacity}% {icon}",
-        "format-charging": "{capacity}% ",
-        "format-icons": ["", "", "", "", ""],
+        "format-charging": "{capacity}% 󰂄",
+        "format-icons": ["󰂎", "󰁺", "󰁼", "󰁾", "󰂀", "󰁹"],
         "states": { "warning": 30, "critical": 15 }
     },
     "network": {
-        "format-wifi": "{essid} ({signalStrength}%) ",
-        "format-ethernet": "wired ",
-        "format-disconnected": "offline ",
-        "on-click": "nm-connection-editor"
+        "format-wifi": "  {signalStrength}%",
+        "format-ethernet": "󰈀",
+        "format-disconnected": "󰖪",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)",
+        "on-click": "alacritty -e nmtui"
     },
     "bluetooth": {
-        "format": " {status}",
+        "format": "󰂯",
+        "format-disabled": "󰂲",
+        "format-off": "󰂲",
         "on-click": "blueman-manager"
     },
     "pulseaudio": {
-        "format": "{volume}% {icon}",
-        "format-muted": "muted ",
-        "format-icons": { "default": ["", "", ""] },
+        "format": "{icon} {volume}%",
+        "format-muted": "󰝟",
+        "format-icons": { "default": ["󰕿", "󰖀", "󰕾"] },
         "on-click": "pavucontrol"
     },
     "tray": {
-        "spacing": 8
+        "spacing": 10
     }
 }

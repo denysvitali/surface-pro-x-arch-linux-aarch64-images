@@ -1,0 +1,9 @@
+show=drun
+width=600
+height=400
+location=center
+prompt=Search...
+allow_images=true
+insensitive=true
+no_actions=true
+gtk_dark=true
