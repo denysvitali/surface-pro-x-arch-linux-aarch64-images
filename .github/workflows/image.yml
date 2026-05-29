@@ -58,12 +58,15 @@ jobs:
   release:
     name: Publish release
     needs: [build]
-    # Only publish a release for tag pushes; on branch pushes github.ref is a
-    # branch (e.g. refs/heads/main) for which no release exists, so the upload
-    # would fail with "Not Found". The built images are still available as
-    # workflow artifacts on every run.
-    if: startsWith(github.ref, 'refs/tags/')
+    # Publish a release for every push (and tag). Tag pushes get a normal
+    # release named after the tag; branch pushes get a per-commit prerelease
+    # tagged build-<short-sha>. Runs even if one profile in the build matrix
+    # failed (!cancelled) and releases whatever images were produced, so a
+    # work-in-progress profile does not block releasing the others.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - name: Download artifacts
       uses: actions/download-artifact@v4
@@ -71,10 +74,38 @@ jobs:
         path: artifacts
         merge-multiple: true
 
-    - name: Upload assets
+    - name: Prepare release metadata
+      id: rel
+      run: |
+        shopt -s nullglob
+        imgs=(artifacts/*.img)
+        if [[ ${#imgs[@]} -eq 0 ]]; then
+          echo "No image artifacts were produced; skipping release."
+          echo "publish=false" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+        echo "Found images: ${imgs[*]}"
+        echo "publish=true" >> "${GITHUB_OUTPUT}"
+
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+        else
+          echo "tag=build-${GITHUB_SHA::7}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+        fi
+
+    - name: Publish release
+      if: ${{ steps.rel.outputs.publish == 'true' }}
       uses: svenstaro/upload-release-action@v2
       with:
-        file: ./artifacts/*
-        tag: ${{ github.ref }}
-        overwrite: true
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: artifacts/*.img
         file_glob: true
+        tag: ${{ steps.rel.outputs.tag }}
+        release_name: Build ${{ steps.rel.outputs.tag }}
+        prerelease: ${{ steps.rel.outputs.prerelease }}
+        target_commit: ${{ github.sha }}
+        overwrite: true
+        body: |
+          Automated image build for commit ${{ github.sha }}.
