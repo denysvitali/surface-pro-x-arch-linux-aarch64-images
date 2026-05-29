@@ -59,10 +59,10 @@ jobs:
     name: Publish release
     needs: [build]
     # Publish a release for every push (and tag). Tag pushes get a normal
-    # release named after the tag; branch pushes get a per-commit prerelease
-    # tagged build-<short-sha>. Runs even if one profile in the build matrix
-    # failed (!cancelled) and releases whatever images were produced, so a
-    # work-in-progress profile does not block releasing the others.
+    # release named after the tag; branch pushes get a date-versioned release
+    # tagged v<YYYY.MM.DD.HHMM> (UTC). Runs even if one profile in the build
+    # matrix failed (!cancelled) and releases whatever images were produced, so
+    # a work-in-progress profile does not block releasing the others.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
@@ -89,11 +89,11 @@ jobs:
 
         if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
           echo "tag=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
-          echo "prerelease=false" >> "${GITHUB_OUTPUT}"
         else
-          echo "tag=build-${GITHUB_SHA::7}" >> "${GITHUB_OUTPUT}"
-          echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+          # Date-versioned tag, e.g. v2026.05.30.0011 (UTC, minute resolution).
+          echo "tag=v$(date -u +%Y.%m.%d.%H%M)" >> "${GITHUB_OUTPUT}"
         fi
+        echo "prerelease=false" >> "${GITHUB_OUTPUT}"
 
     - name: Compress images
       if: ${{ steps.rel.outputs.publish == 'true' }}
