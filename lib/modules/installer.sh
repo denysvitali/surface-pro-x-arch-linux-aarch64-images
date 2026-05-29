@@ -40,27 +40,30 @@ set -euo pipefail
 EFI_SRC="/usr/local/share/aarch64-arch-mkimg/efi"
 TARGET="/dev/nvme0n1"
 ASSUME_YES=0
+DRY_RUN=0
 
 die()  { echo "error: $*" >&2; exit 1; }
 note() { echo ">> $*"; }
 
 usage() {
     cat <<USAGE
-Usage: aarch64-arch-install [-d DEVICE] [-y]
+Usage: aarch64-arch-install [-d DEVICE] [-y] [-n]
 
 Clone the running system onto DEVICE (default: ${TARGET}) and make it bootable.
 THIS ERASES THE TARGET DEVICE.
 
   -d DEVICE   target whole disk (e.g. /dev/nvme0n1, /dev/sda)
   -y          do not ask for confirmation
+  -n          dry run: show the plan and exit without touching the disk
   -h          show this help
 USAGE
 }
 
-while getopts "d:yh" opt; do
+while getopts "d:ynh" opt; do
     case "${opt}" in
         d) TARGET="${OPTARG}" ;;
         y) ASSUME_YES=1 ;;
+        n) DRY_RUN=1 ;;
         h) usage; exit 0 ;;
         *) usage; exit 1 ;;
     esac
@@ -88,6 +91,11 @@ ROOT_PART="${TARGET}${P}2"
 note "Target disk : ${TARGET}"
 note "  EFI part  : ${EFI_PART} (512 MiB, FAT32)"
 note "  root part : ${ROOT_PART} (rest, ext4)"
+
+if [[ ${DRY_RUN} -eq 1 ]]; then
+    note "dry run: no changes made."
+    exit 0
+fi
 
 if [[ ${ASSUME_YES} -ne 1 ]]; then
     echo
@@ -136,6 +144,16 @@ rsync -aHAXS --info=progress2 \
 # Recreate the virtual-filesystem mountpoints rsync skipped.
 mkdir -p "${MNT}"/{dev,proc,sys,run,tmp,mnt,media}
 chmod 1777 "${MNT}/tmp"
+
+# Golden-image hygiene: the installed system is a clone of the running live
+# image, so reset per-machine identity that must be unique. An empty
+# /etc/machine-id makes systemd generate a fresh one on first boot; removing the
+# SSH host keys makes sshd regenerate them (via sshdgenkeys.service). Otherwise
+# the NVMe install and the USB stick would share an identity.
+note "Resetting machine identity (machine-id, SSH host keys)..."
+: > "${MNT}/etc/machine-id"
+rm -f "${MNT}/var/lib/dbus/machine-id"
+rm -f "${MNT}"/etc/ssh/ssh_host_*
 
 note "Installing bootloader (ESP)..."
 cp -a "${EFI_SRC}/." "${MNT}/efi/"
