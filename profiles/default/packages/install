@@ -13,3 +13,9 @@ neovim
 dosfstools
 arch-install-scripts
 util-linux
+bluez
+bluez-utils
+mesa
+vulkan-freedreno
+vulkan-icd-loader
+iptsd
