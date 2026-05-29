@@ -18,4 +18,6 @@ bluez-utils
 mesa
 vulkan-freedreno
 vulkan-icd-loader
-iptsd
+sudo
+openssh
+terminus-font
