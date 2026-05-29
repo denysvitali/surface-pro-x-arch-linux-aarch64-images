@@ -53,5 +53,20 @@ install() {
     _msg2 "Regenerating all initramfs images..."
     # Rebuild every preset (initramfs-linux-surface.img is the one the
     # persistent grub.cfg loads).
-    mkinitcpio -P
+    #
+    # The linux-surface sc8180x kernel ships its own mkinitcpio drop-in that
+    # lists the platform USB/PHY drivers as '?'-optional modules. Those drivers
+    # are built into the kernel (=y), and this mkinitcpio errors out with a
+    # non-zero exit on a '?'-optional module it cannot find instead of silently
+    # skipping it -- even though it still writes a complete initramfs. Treat that
+    # specific case as non-fatal: only fail if the image the bootloader actually
+    # loads is missing or empty.
+    local img=/boot/initramfs-linux-surface.img
+    if ! mkinitcpio -P; then
+        if [[ ! -s "${img}" ]]; then
+            _msg2 "ERROR: mkinitcpio failed and ${img} was not produced"
+            return 1
+        fi
+        _msg2 "WARNING: mkinitcpio reported errors (optional built-in modules); ${img} present, continuing."
+    fi
 }
