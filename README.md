@@ -123,6 +123,23 @@ The `aarch64-arch-mkimage` utility works in three major steps:
   rm -rf /mnt/{efi,root}
   ```
 
+- `desktop`: A persistent system (same disk layout as `persistent`) that boots into a
+  [Hyprland](https://hyprland.org/) Wayland desktop, loosely modelled on
+  [Omarchy](https://github.com/basecamp/omarchy).
+  Omarchy itself is x86-centric and pulls many AUR packages, so instead of running its
+  installer this profile assembles an equivalent stack from native ALARM/aarch64 packages:
+  Hyprland with `waybar`, `mako`, `wofi`, `hyprlock`/`hypridle`, PipeWire audio, the
+  Alacritty terminal and Chromium, plus a small set of Omarchy-flavoured (Catppuccin Mocha)
+  configs shipped via `/etc/skel`.
+  Login is handled by `greetd` + `tuigreet`, which launches Hyprland for the default
+  `alarm` user (added to the `wheel`/`video`/`input`/`audio` groups).
+
+  Flash and use it exactly like the `persistent` profile (`dd` or manual partitioning).
+  Note this is a much larger image and a correspondingly longer build; the panel is scaled
+  1.5x and 3-finger swipes switch workspaces for touch use.
+  Super (`SUPER`) is the modifier: `SUPER+RETURN` opens a terminal, `SUPER+R` the launcher,
+  `SUPER+B` the browser, `SUPER+L` locks.
+
 
 ## Customization
 

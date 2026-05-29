@@ -15,11 +15,15 @@ env:
 
 jobs:
   build:
-    name: Build default Image
+    name: Build ${{ matrix.profile }} Image
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [default, desktop]
 
     steps:
       - name: Checkout repository
@@ -32,24 +36,24 @@ jobs:
         run: |
           docker buildx build --output type=docker -t aarch64-arch-mkimg .
 
-      - name: Build default image
+      - name: Build ${{ matrix.profile }} image
         run: |
           mkdir build
           docker run --rm --privileged                  \
               --mount type=tmpfs,destination=/run/shm   \
               -v /dev:/dev                              \
               -v "${PWD}/build":/build                  \
-              aarch64-arch-mkimg default
+              aarch64-arch-mkimg ${{ matrix.profile }}
 
       - name: Rename image file
         run: |
-          mv ./build/disk.img aarch64-arch-spx-default.img
+          mv ./build/disk.img aarch64-arch-spx-${{ matrix.profile }}.img
 
       - name: Archive build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: default.img
-          path: aarch64-arch-spx-default.img
+          name: ${{ matrix.profile }}.img
+          path: aarch64-arch-spx-${{ matrix.profile }}.img
 
   release:
     name: Publish release
@@ -59,13 +63,13 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: default.img
-        path: default.img
+        path: artifacts
+        merge-multiple: true
 
     - name: Upload assets
       uses: svenstaro/upload-release-action@v2
       with:
-        file: ./default.img/*
+        file: ./artifacts/*
         tag: ${{ github.ref }}
         overwrite: true
         file_glob: true

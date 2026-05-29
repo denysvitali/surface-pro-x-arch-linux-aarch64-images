@@ -1,0 +1,9 @@
+# greetd configuration: tuigreet on VT 1, launching Hyprland for the chosen user.
+# https://man.sr.ht/~kennylevinsen/greetd/
+
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --remember --asterisks --cmd Hyprland"
+user = "greeter"
